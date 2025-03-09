@@ -1,4 +1,4 @@
-import { App, displayTooltip, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, moment } from 'obsidian';
+import { App, displayTooltip, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, moment, TooltipPlacement, EventRef } from 'obsidian';
 import MsgReader from '@kenjiuno/msgreader';
 import proxyData from 'mustache-validator';
 const Mustache = require('mustache');
@@ -39,8 +39,7 @@ export default class OutlookMeetingNotes extends Plugin {
 
 	//TODO: Add functionality to export meeting notes nicely
 
-	async createMeetingNote(msgPromise: Promise<MsgReader>) {
-		const msg = await msgPromise;
+	async createMeetingNote(msg: MsgReader) {
 		try {
 			const { vault } = this.app;
 
@@ -90,6 +89,7 @@ export default class OutlookMeetingNotes extends Plugin {
 			}
 			const openInNewTab = false;
 			this.app.workspace.getLeaf(openInNewTab).openFile(meetingNoteFile);
+			// @ts-ignore: Property 'internalPlugins' does not exist on type 'App'.
 			const fe = this.app.internalPlugins.getEnabledPluginById("file-explorer");
 			if (fe) { fe.revealInFolder(meetingNoteFile); }
 		} catch (ee: unknown) {
@@ -134,6 +134,8 @@ export default class OutlookMeetingNotes extends Plugin {
 		}
 	}
 
+	private ribbonIconEl: HTMLElement;
+
 	async onload() {
 		await this.loadSettings();
 
@@ -141,48 +143,47 @@ export default class OutlookMeetingNotes extends Plugin {
 
 		// This creates an icon in the left ribbon.
 		// Create an icon that does nothing when clicked, as the effect is from 
-		const ribbonIconEl = this.addRibbonIcon('calendar-clock', tooltipMessage, () => { });
+		this.ribbonIconEl = this.addRibbonIcon('calendar-clock', tooltipMessage, () => { });
 
 		// These respond to something being dragged over the ribbon icon and dropped onto it
-		this.registerEvent(ribbonIconEl.on('dragenter', 'div', () => {
-			// Style for icon-dragover is defined in the CSS file.
-			ribbonIconEl.toggleClass('is-being-dragged-over', true);
+		this.ribbonIconEl.addEventListener('dragenter', () => {
+			// Style for is-being-dragged-over is defined in the CSS file.
+			this.ribbonIconEl.toggleClass('is-being-dragged-over', true);
 			// Display a tooltip.
-			const ttPosition = ribbonIconEl.getAttribute('data-tooltip-position');
-			const ttDelay = ribbonIconEl.getAttribute('data-tooltip-delay');
+			const ttPosition = this.ribbonIconEl.getAttribute('data-tooltip-position') as TooltipPlacement;
+			const ttDelay = this.ribbonIconEl.getAttribute('data-tooltip-delay');
 			if (ttPosition != null && ttDelay != null) {
-				displayTooltip(ribbonIconEl, tooltipMessage, { placement: ttPosition, delay: Number(ttDelay) });
+				displayTooltip(this.ribbonIconEl, tooltipMessage, { placement: ttPosition, delay: Number(ttDelay) });
 			} else {
-				displayTooltip(ribbonIconEl, tooltipMessage);
+				displayTooltip(this.ribbonIconEl, tooltipMessage);
 			}
-		}));
-		this.registerEvent(ribbonIconEl.on('dragleave', 'div', () => {
-			ribbonIconEl.toggleClass('is-being-dragged-over', false);
+		});
+		this.ribbonIconEl.addEventListener('dragleave', () => {
+			this.ribbonIconEl.toggleClass('is-being-dragged-over', false);
 			// Remove the tooltip when the user leaves the ribbon icon while still dragging.
 			const tooltip = document.getElementsByClassName('tooltip')[0]
 			if (tooltip) { tooltip.remove(); }
-		}));
-		this.registerEvent(ribbonIconEl.on('dragover', 'div', (dragevt) => {
+		});
+		this.ribbonIconEl.addEventListener('dragover', (dragevt) => {
 			// User is dragging something over the icon
 
 			// Prevent the default behaviour of not allowing the drop event
 			dragevt.preventDefault();
 			// The dropEffect changes the cursor. Options are 'none', 'move', 'copy', and 'link'.
 			if (dragevt.dataTransfer != null) { dragevt.dataTransfer.dropEffect = 'copy'; }
-		}));
-		this.registerEvent(ribbonIconEl.on('drop', 'div', (dropevt) => {
+		});
+		this.ribbonIconEl.addEventListener('drop', (dropevt) => {
 			// User has dropped something on the icon
 
 			// If the user drops something, dragleave doesn't get called.
-			ribbonIconEl.toggleClass('is-being-dragged-over', false);
+			this.ribbonIconEl.toggleClass('is-being-dragged-over', false);
 
 			// Prevent the default behaviour because we're handling it.
 			dropevt.preventDefault();
 			// Call the custom function defined above.
 			this.handleDropEvent(dropevt);
-		}));
-		ribbonIconEl.addClass('outlook-meeting-notes-icon');
-
+		});
+		this.ribbonIconEl.addClass('outlook-meeting-notes-icon');
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		// const statusBarItemEl = this.addStatusBarItem();
@@ -241,7 +242,7 @@ export default class OutlookMeetingNotes extends Plugin {
 	}
 
 	onunload() {
-
+		//Don't need to remove event listeners because the icon will be gone.
 	}
 
 	async loadSettings() {
@@ -266,8 +267,8 @@ export default class OutlookMeetingNotes extends Plugin {
 				}
 			}
 		};
-
-		for (let func in helperFunctions) {
+		let func: 'firstWord' | 'dateFormat';
+		for (func in helperFunctions) {
 			hash['helper_' + func] = helperFunctions[func];
 		}
 		// Add helper functions to all objects in arrays so that the helper 
@@ -276,7 +277,7 @@ export default class OutlookMeetingNotes extends Plugin {
 			if (hash[property] instanceof Array) {
 				for (let subproperty in hash[property]) {
 					if (hash[property][subproperty] instanceof Object) {
-						for (let func in helperFunctions) {
+						for (func in helperFunctions) {
 							hash[property][subproperty]['helper_' + func] = helperFunctions[func];
 						}
 					}
