@@ -6,6 +6,5 @@
 	"description": "Creates meeting notes for Outlook appointments and meetings.",
 	"author": "David Ingerslev",
 	"authorUrl": "https://github.com/davidingerslev",
-	"fundingUrl": "https://github.com/davidingerslev",
 	"isDesktopOnly": false
 }
