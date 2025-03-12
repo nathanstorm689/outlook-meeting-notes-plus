@@ -75,7 +75,7 @@ export default class OutlookMeetingNotes extends Plugin {
 			let meetingNoteFile = vault.getFileByPath(filePath);
 			if (meetingNoteFile) {
 				// File already exists
-				// TODO: send a message to the user
+				new Notice(meetingNoteFile.basename + ' already exists: opening it');
 			}
 			else {
 				if (vault.getFolderByPath(newFolderPath) == null) {
@@ -85,7 +85,7 @@ export default class OutlookMeetingNotes extends Plugin {
 					this.settings.notesTemplate,
 					fileData);
 				meetingNoteFile = await vault.create(filePath, mustacheOutput);
-				new Notice('New file: ' + meetingNoteFile.basename);
+				new Notice('New file created: ' + meetingNoteFile.basename);
 			}
 			const openInNewTab = false;
 			this.app.workspace.getLeaf(openInNewTab).openFile(meetingNoteFile);
