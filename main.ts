@@ -94,7 +94,7 @@ export default class OutlookMeetingNotes extends Plugin {
 			if (fe) { fe.revealInFolder(meetingNoteFile); }
 		} catch (ee: unknown) {
 			// TODO: Handle errors reasonably -- differently between msg missing elements and errors creating file
-			if (ee instanceof Error) { new Notice(ee.name + ':\n' + ee.message); }
+			if (ee instanceof Error) { new Notice('Error (' + ee.name + '):\n' + ee.message); }
 			throw ee;
 		}
 	}
@@ -113,7 +113,6 @@ export default class OutlookMeetingNotes extends Plugin {
 			else {
 				// One file was dropped, hand it over to createMeetingNote
 				const droppedFile = droppedFiles[0];
-				new Notice('Dropped: ' + droppedFile.name);
 
 				const fr = new FileReader();
 				fr.onload = () => {
