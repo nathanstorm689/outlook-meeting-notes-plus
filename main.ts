@@ -1,7 +1,8 @@
-import { App, displayTooltip, Editor, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, moment, TooltipPlacement, EventRef } from 'obsidian';
+import { App, displayTooltip, Editor, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TooltipPlacement, EventRef } from 'obsidian';
 import MsgReader from '@kenjiuno/msgreader';
 import proxyData from 'mustache-validator';
-const Mustache = require('mustache');
+import Mustache from 'mustache';
+import moment from 'moment';
 
 const OutlookMeetingNotesDefaultFilenamePattern =
 	'{{#helper_dateFormat}}{{apptStartWhole}}|YYYY-MM-DD HH.mm{{/helper_dateFormat}} {{subject}}';
