@@ -12,7 +12,14 @@ By processing .msg files, the plugin does not depend on having to run code withi
 Outlook or on Microsoft 365 administrators authorising an app to connect to the
 Microsoft Graph API.
 
-It relies on the wonderful [msgreader](https://github.com/HiraokaHyperTools/msgreader),
+Note about recurring meetings or appointments: Microsoft Outlook does not include
+any fields that indicate which of the recurring appointments has been dragged-and-dropped,
+so it is not possible to differentiate between them. This means that the start date/time 
+of the first appointment in the recurring series will be used by default. You may wish
+to change the filename template to include the current date/time instead (or as well)
+using the helper field [helper_currentDT](#helper_currentDT).
+
+The plugin relies on the wonderful [msgreader](https://github.com/HiraokaHyperTools/msgreader),
 [mustache.js](https://github.com/janl/mustache.js), and
 [mustache-validator](https://github.com/eliasm307/mustache-validator) libraries.
 
