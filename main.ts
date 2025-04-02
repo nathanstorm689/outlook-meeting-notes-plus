@@ -45,18 +45,22 @@ export default class OutlookMeetingNotes extends Plugin {
 			const { vault } = this.app;
 
 			// Get the file data from MsgReader
-			const fileData = msg.getFileData();
+			const origFileData = msg.getFileData();
 
 			// Check if we got a suitable meeting
-			if (fileData.dataType != 'msg') {
+			if (origFileData.dataType != 'msg') {
 				throw new TypeError('Outlook Meeting Notes cannot process the file. '
 					+ 'MsgReader did not parse the file as valid msg format.');
-			} else if (fileData.messageClass != 'IPM.Appointment') {
+			} else if (origFileData.messageClass != 'IPM.Appointment') {
 				throw new TypeError('Outlook Meeting Notes cannot process the file. '
 					+ 'It is a valid msg file but not an appointment or meeting.');
 			}
 
-			this.addHelperFunctions(fileData);
+			this.addHelperFunctions(origFileData);
+
+			// Add helper field for the current date and time
+			let fileData = origFileData as any;
+			fileData.helper_currentDT = moment().format();
 
 			let folderPath = this.settings.notesFolder;
 			if (folderPath == '') { folderPath = '/'; }
