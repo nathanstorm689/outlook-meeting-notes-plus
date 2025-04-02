@@ -69,8 +69,8 @@ Note - the invalid characters are: `/` `*` `"` `\` `<` `>` `:` `|` `?`
 The default template can be customised, or you can write a new
 template using mustache syntax (see [the manual](https://mustache.github.io/mustache.5.html)).
 All .msg [fields](https://hiraokahypertools.github.io/msgreader/typedoc/interfaces/MsgReader.FieldsData.html)
-can be used in a template, and there are also some additional helper functions you can
-use to format fields.
+can be used in a template, and there are also some additional helper fields and 
+functions you can use to format fields.
 
 ### Default template
 The default template for notes is:
@@ -87,6 +87,19 @@ meeting-recipients:
 {{/recipients}}
 meeting-invite: {{body}}
 ---
+```
+
+### Helper fields for templates
+There is currently only one helper field available:
+
+#### helper_currentDT
+The date and time at which the meeting was dragged-and-dropped onto the icon, 
+in ISO format (like *2025-04-02T09:31:12+01:00*). 
+
+You will probably want to use the [helper_dateFormat](#helper_dateFormat) function
+to format it:
+```
+{{#helper_dateFormat}}{{helper_currentDT}}|YYYY-MM-DD HH.mm.ss{{/helper_dateFormat}}
 ```
 
 ### Helper functions for templates
