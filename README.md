@@ -4,7 +4,7 @@ This is a plugin for [Obsidian](https://obsidian.md) that allows you to create n
 Microsoft Outlook meetings, including the meeting details (date/time,
 subject, recipients, invite message, etc), using a customisable template.
 The plugin processes .msg files that are dragged-and-dropped from the 
-Outlook desktop app onto the plugin icon in the ribbon in Obsidian
+Outlook desktop app onto the plugin icon in the ribbon in Obsidian, opens an existing note when one already exists, or creates a new one when needed.
 
 This makes it easy to take notes of meetings in Obsidian.
 
@@ -12,12 +12,7 @@ By processing .msg files, the plugin does not depend on having to run code withi
 Outlook or on Microsoft 365 administrators authorising an app to connect to the
 Microsoft Graph API.
 
-Note about recurring meetings or appointments: Microsoft Outlook does not include
-any fields that indicate which of the recurring appointments has been dragged-and-dropped,
-so it is not possible to differentiate between them. This means that the start date/time 
-of the first appointment in the recurring series will be used by default. You may wish
-to change the filename template to include the current date/time instead (or as well)
-using the helper field [helper_currentDT](#helper_currentDT).
+Recurring meetings or appointments: Microsoft Outlook does not always include enough information in the dragged-and-dropped `.msg` file to identify which occurrence was selected. When the plugin detects a recurring series it prompts you to confirm the occurrence date (defaulting to today) before the note is created. This information is then used for the filename, frontmatter, and template helpers.
 
 The plugin relies on the wonderful [msgreader](https://github.com/HiraokaHyperTools/msgreader),
 [mustache.js](https://github.com/janl/mustache.js), and
@@ -30,12 +25,14 @@ on the [Obsidian website](https://obsidian.md/plugins?search=outlook+meeting+not
 
 ## Usage
 Drag and drop a meeting from a calendar in the Outlook Classic desktop app onto the
-plugin ribbon icon in Obsidian. The plugin will create a note and open it in the
-current tab.
+plugin ribbon icon in Obsidian. The plugin will create a note (or open an existing one) in the current tab.
 
 Outlook Classic creates a .msg file when you drag and drop an appointment or meeting.
 You can also save a meeting as a .msg file (or save one you have received as an email
 attachment) and drag and drop the file onto the plugin icon.
+
+### Recurring meetings
+If the dropped `.msg` represents part of a recurring series, the plugin shows a modal asking for the occurrence date in `YYYY-MM-DD` format. Press Enter to accept the default (today), adjust the date if needed, or cancel to abort note creation.
 
 The plugin includes a default template that adds the meeting details
 into the frontmatter (properties) of the created note. It sets the filename of the note
@@ -95,6 +92,8 @@ meeting-recipients:
 meeting-invite: {{body}}
 ---
 ```
+
+YAML values are sanitised automatically to strip problematic characters such as `<`, `>` and `*`, keeping the generated frontmatter valid even when invite data contains those symbols.
 
 ### Helper fields for templates
 There is currently only one helper field available:
