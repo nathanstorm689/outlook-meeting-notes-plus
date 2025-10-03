@@ -210,19 +210,37 @@ export default class OutlookMeetingNotes extends Plugin {
 
 		const originalStart = moment(fileData.apptStartWhole);
 		const originalEnd = moment(fileData.apptEndWhole);
-		const durationMs = originalStart.isValid() && originalEnd.isValid() ? originalEnd.diff(originalStart) : null;
 		const originalStartLocal = moment(fileData.apptStartWholeLocal);
 		const originalEndLocal = moment(fileData.apptEndWholeLocal);
 
-		if (originalStart.isValid()) {
-			const adjustedStart = originalStart.clone()
+		const durationMs = originalStart.isValid() && originalEnd.isValid()
+			? originalEnd.diff(originalStart)
+			: (originalStartLocal.isValid() && originalEndLocal.isValid()
+				? originalEndLocal.diff(originalStartLocal)
+				: null);
+
+		let adjustedStart = originalStart.isValid()
+			? originalStart.clone()
+			: (originalStartLocal.isValid()
+				? originalStartLocal.clone()
+				: selectedDate.clone().startOf('day'));
+		adjustedStart = adjustedStart
+			.year(selectedDate.year())
+			.month(selectedDate.month())
+			.date(selectedDate.date());
+		fileData.apptStartWhole = adjustedStart.format();
+
+		let adjustedEnd: moment.Moment | null = null;
+		if (originalEnd.isValid()) {
+			adjustedEnd = originalEnd.clone()
 				.year(selectedDate.year())
 				.month(selectedDate.month())
 				.date(selectedDate.date());
-			fileData.apptStartWhole = adjustedStart.format();
-			if (durationMs !== null) {
-				fileData.apptEndWhole = adjustedStart.clone().add(durationMs).format();
-			}
+		} else if (durationMs !== null) {
+			adjustedEnd = adjustedStart.clone().add(durationMs);
+		}
+		if (adjustedEnd) {
+			fileData.apptEndWhole = adjustedEnd.format();
 		}
 
 		if (originalStartLocal.isValid()) {
@@ -231,6 +249,8 @@ export default class OutlookMeetingNotes extends Plugin {
 				.month(selectedDate.month())
 				.date(selectedDate.date());
 			fileData.apptStartWholeLocal = adjustedStartLocal.format();
+		} else {
+			fileData.apptStartWholeLocal = adjustedStart.format();
 		}
 
 		if (originalEndLocal.isValid()) {
@@ -244,8 +264,16 @@ export default class OutlookMeetingNotes extends Plugin {
 					.month(selectedDate.month())
 					.date(selectedDate.date());
 				adjustedEndLocal = startLocalAdjusted.add(durationMs);
+			} else if (durationMs !== null) {
+				adjustedEndLocal = adjustedStart.clone().add(durationMs);
 			}
 			fileData.apptEndWholeLocal = adjustedEndLocal.format();
+		} else if (durationMs !== null && adjustedEnd) {
+			fileData.apptEndWholeLocal = adjustedEnd.format();
+		}
+
+		if (adjustedStart.isValid()) {
+			fileData.helper_selectedOccurrenceDateTimeIso = adjustedStart.toISOString();
 		}
 
 		const adjustedStartMoment = moment(fileData.apptStartWhole);
@@ -387,8 +415,19 @@ export default class OutlookMeetingNotes extends Plugin {
 			},
 			dateFormat: () => {
 				return function (datetime_format: string, render: any) {
-					const parts = datetime_format.split('|')
-					return moment(render(parts[0]).trim()).format(parts[1]);
+					const parts = datetime_format.split('|');
+					const rawValue = render(parts[0]).trim();
+					let formattedMoment = moment(rawValue);
+					if (!formattedMoment.isValid()) {
+						const ctx = this as Record<string, unknown> & { helper_selectedOccurrenceDateTimeIso?: string; helper_selectedOccurrenceDate?: string; };
+						const isoFallback = typeof ctx.helper_selectedOccurrenceDateTimeIso === 'string' ? ctx.helper_selectedOccurrenceDateTimeIso : undefined;
+						if (isoFallback) { formattedMoment = moment(isoFallback); }
+						if (!formattedMoment.isValid() && typeof ctx.helper_selectedOccurrenceDate === 'string') {
+							formattedMoment = moment(ctx.helper_selectedOccurrenceDate, 'YYYY-MM-DD', true);
+						}
+					}
+					if (!formattedMoment.isValid()) { return rawValue; }
+					return formattedMoment.format(parts[1]);
 				}
 			}
 		};
@@ -643,3 +682,5 @@ class OutlookMeetingNotesSettingTab extends PluginSettingTab {
 - Make sure you have a `README.md` file in the root of your repo.
 - Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
  */
+
+
