@@ -1,4 +1,4 @@
-import { App, displayTooltip, Editor, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TooltipPlacement, EventRef } from 'obsidian';
+import { App, ButtonComponent, Modal, TextComponent, displayTooltip, Editor, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TooltipPlacement, EventRef, normalizePath } from 'obsidian';
 import MsgReader from '@kenjiuno/msgreader';
 import proxyData from 'mustache-validator';
 import Mustache from 'mustache';
@@ -62,8 +62,20 @@ export default class OutlookMeetingNotes extends Plugin {
 			let fileData = origFileData as any;
 			fileData.helper_currentDT = moment().format();
 
-			let folderPath = this.settings.notesFolder;
-			if (folderPath == '') { folderPath = '/'; }
+			this.ensureBodyField(fileData);
+
+			if (this.isRecurringAppointment(fileData)) {
+				const occurrenceDate = await this.getRecurringOccurrenceDate();
+				if (occurrenceDate === null) {
+					new Notice('Meeting note creation cancelled.');
+					return;
+				}
+				this.applyRecurringOccurrenceDate(fileData, occurrenceDate);
+			}
+
+			let targetFolderPath = (this.settings.notesFolder ?? '').trim();
+			if (targetFolderPath === '' || targetFolderPath === '/') { targetFolderPath = ''; }
+			else { targetFolderPath = normalizePath(targetFolderPath); }
 			const fileNameEscape = {
 				escape: (str: string): string => {
 					return str.replaceAll('/', this.settings.invalidFilenameCharReplacement);
@@ -74,17 +86,17 @@ export default class OutlookMeetingNotes extends Plugin {
 				proxyData(fileData),
 				undefined,
 				fileNameEscape)
-				.replaceAll(/[*"\\<>:|?]/g, this.settings.invalidFilenameCharReplacement);
-			const filePath = folderPath + '/' + fileNameMustache + '.md';
-			const newFolderPath = filePath.replace(/\/[^/]*$/, '');
+				.replaceAll(/[*\"\\<>:|?]/g, this.settings.invalidFilenameCharReplacement);
+			const folderPrefix = targetFolderPath === '' ? '' : targetFolderPath + '/';
+			const filePath = normalizePath(folderPrefix + fileNameMustache + '.md');
 			let meetingNoteFile = vault.getFileByPath(filePath);
 			if (meetingNoteFile) {
 				// File already exists
 				new Notice(meetingNoteFile.basename + ' already exists: opening it');
 			}
 			else {
-				if (vault.getFolderByPath(newFolderPath) == null) {
-					vault.createFolder(newFolderPath);
+				if (targetFolderPath !== '' && vault.getFolderByPath(targetFolderPath) == null) {
+					await vault.createFolder(targetFolderPath);
 				}
 				const mustacheOutput = this.renderTemplate(
 					this.settings.notesTemplate,
@@ -101,6 +113,161 @@ export default class OutlookMeetingNotes extends Plugin {
 			// TODO: Handle errors reasonably -- differently between msg missing elements and errors creating file
 			if (ee instanceof Error) { new Notice('Error (' + ee.name + '):\n' + ee.message); }
 			throw ee;
+		}
+	}
+
+	private ensureBodyField(fileData: any): void {
+		const hasBodyString = typeof fileData.body === 'string' && fileData.body.trim() !== '';
+		if (hasBodyString) { return; }
+		const fallbacks = [
+			fileData.bodyText,
+			fileData.bodyPlainText,
+			fileData.bodyHtml,
+			fileData.rtfCompressed 
+		];
+		for (const candidate of fallbacks) {
+			if (typeof candidate === 'string' && candidate.trim() !== '') {
+				fileData.body = candidate.includes('<') ? this.dropHtmlTags(candidate) : candidate;
+				return;
+			}
+		}
+		fileData.body = '';
+	}
+
+	private dropHtmlTags(input: string): string {
+		return input
+			.replace(/<(style|script)[^>]*?>[\s\S]*?<\/\1>/gi, '')
+			.replace(/<[^>]+>/g, '')
+			.replace(/&nbsp;/gi, ' ')
+			.replace(/&amp;/gi, '&')
+			.replace(/&lt;/gi, '<')
+			.replace(/&gt;/gi, '>')
+			.replace(/&quot;/gi, '"')
+			.replace(/&#39;/gi, "'")
+			.replace(/\s+/g, ' ')
+			.trim();
+	}
+
+
+	private isRecurringAppointment(fileData: any): boolean {
+		const keys = Object.keys(fileData ?? {});
+		const boolClues = new Set(['isrecurring', 'isrecurringmeeting', 'recurring']);
+		for (const key of keys) {
+			const lower = key.toLowerCase();
+			if (boolClues.has(lower)) {
+				if ((fileData as Record<string, unknown>)[key] === true) {
+					return true;
+				}
+			}
+		}
+		const hintSubstrings = ['apptrecur', 'appointmentrecur', 'recurrence', 'recurrencerule', 'recurrencepattern', 'recurrenceinfo', 'recurrencestate', 'recurrencetype', 'recurringmaster', 'apptimezonedefrecur'];
+		for (const key of keys) {
+			const lower = key.toLowerCase();
+			for (const hint of hintSubstrings) {
+				if (lower.includes(hint)) {
+					const value = (fileData as Record<string, unknown>)[key];
+					if (typeof value === 'boolean') { return value; }
+					if (value != null && value !== '') { return true; }
+				}
+			}
+		}
+		if (typeof fileData.messageClass === 'string') {
+			const lowerClass = fileData.messageClass.toLowerCase();
+			if (lowerClass.includes('recurring') || lowerClass.includes('exception') || lowerClass.includes('occurrence')) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private async getRecurringOccurrenceDate(): Promise<string | null> {
+		let currentValue = moment().format('YYYY-MM-DD');
+		while (true) {
+			const result = await this.promptForRecurringDate(currentValue);
+			if (result === null) {
+				return null;
+			}
+			const trimmed = result.trim();
+			if (moment(trimmed, 'YYYY-MM-DD', true).isValid()) {
+				return trimmed;
+			}
+			new Notice('Please enter the date in YYYY-MM-DD format.');
+			if (trimmed !== '') { currentValue = trimmed; }
+		}
+	}
+
+	private async promptForRecurringDate(defaultValue: string): Promise<string | null> {
+		return await new Promise((resolve) => {
+			const modal = new RecurringOccurrenceModal(this.app, defaultValue, resolve);
+			modal.open();
+		});
+	}
+
+	private applyRecurringOccurrenceDate(fileData: any, occurrenceDate: string): void {
+		fileData.helper_selectedOccurrenceDate = occurrenceDate;
+		const selectedDate = moment(occurrenceDate, 'YYYY-MM-DD', true);
+		if (!selectedDate.isValid()) { return; }
+
+		const originalStart = moment(fileData.apptStartWhole);
+		const originalEnd = moment(fileData.apptEndWhole);
+		const durationMs = originalStart.isValid() && originalEnd.isValid() ? originalEnd.diff(originalStart) : null;
+		const originalStartLocal = moment(fileData.apptStartWholeLocal);
+		const originalEndLocal = moment(fileData.apptEndWholeLocal);
+
+		if (originalStart.isValid()) {
+			const adjustedStart = originalStart.clone()
+				.year(selectedDate.year())
+				.month(selectedDate.month())
+				.date(selectedDate.date());
+			fileData.apptStartWhole = adjustedStart.format();
+			if (durationMs !== null) {
+				fileData.apptEndWhole = adjustedStart.clone().add(durationMs).format();
+			}
+		}
+
+		if (originalStartLocal.isValid()) {
+			const adjustedStartLocal = originalStartLocal.clone()
+				.year(selectedDate.year())
+				.month(selectedDate.month())
+				.date(selectedDate.date());
+			fileData.apptStartWholeLocal = adjustedStartLocal.format();
+		}
+
+		if (originalEndLocal.isValid()) {
+			let adjustedEndLocal = originalEndLocal.clone()
+				.year(selectedDate.year())
+				.month(selectedDate.month())
+				.date(selectedDate.date());
+			if (durationMs !== null && originalStartLocal.isValid()) {
+				const startLocalAdjusted = originalStartLocal.clone()
+					.year(selectedDate.year())
+					.month(selectedDate.month())
+					.date(selectedDate.date());
+				adjustedEndLocal = startLocalAdjusted.add(durationMs);
+			}
+			fileData.apptEndWholeLocal = adjustedEndLocal.format();
+		}
+
+		const adjustedStartMoment = moment(fileData.apptStartWhole);
+		if (adjustedStartMoment.isValid()) {
+			for (const key of Object.keys(fileData)) {
+				if (!(typeof fileData[key] === 'string')) { continue; }
+				const lowerKey = key.toLowerCase();
+				if (lowerKey.startsWith('apptstart') && lowerKey.includes('date')) {
+					fileData[key] = adjustedStartMoment.format('YYYY-MM-DD');
+				} else if (lowerKey.startsWith('apptstart') && lowerKey.includes('time')) {
+					fileData[key] = adjustedStartMoment.format('HH:mm');
+				} else if (lowerKey.startsWith('apptstart') && lowerKey.includes('text')) {
+					fileData[key] = adjustedStartMoment.format('L LT');
+				}
+			}
+		}
+
+		if (typeof fileData.apptEndText === 'string' && fileData.apptEndWhole) {
+			const adjustedEndMoment = moment(fileData.apptEndWhole);
+			if (adjustedEndMoment.isValid()) {
+				fileData.apptEndText = adjustedEndMoment.format('L LT');
+			}
 		}
 	}
 
@@ -262,16 +429,18 @@ export default class OutlookMeetingNotes extends Plugin {
 		let output = ''
 
 		if (templateYAMLMatch) {
+			const sanitizeYamlValue = (value: string): string => value.replace(/[><*]/g, '');
 			const mustacheYAMLOptions = {
 				escape: (str: string): string => {
 					// Escape YAML
-					const found = str.match(/\r\n?|\n/);
+					const sanitized = sanitizeYamlValue(str);
+					const found = sanitized.match(/\r\n?|\n/);
 					if (found) {
-						return '|\n' + '  ' + str.replaceAll(/\r\n?|\n/g, '\n  ');
-					} else if (str.match(/[:#\[\]\{\},]/)) {
-						return '"' + str.replaceAll(/["\\]/g, '\\$&') + '"';
+						return '|\n' + '  ' + sanitized.replaceAll(/\r\n?|\n/g, '\n  ');
+					} else if (sanitized.match(/[:#\[\]\{\},]/)) {
+						return '"' + sanitized.replaceAll(/["\\]/g, '\$&') + '"';
 					}
-					else return str;
+					else return sanitized;
 				}
 			}
 
@@ -302,6 +471,75 @@ export default class OutlookMeetingNotes extends Plugin {
 		return output;
 	}
 
+}
+
+class RecurringOccurrenceModal extends Modal {
+	private readonly defaultDate: string;
+	private readonly resolvePromise: (value: string | null) => void;
+	private input!: TextComponent;
+	private hasResolved = false;
+
+	constructor(app: App, defaultDate: string, resolve: (value: string | null) => void) {
+		super(app);
+		this.defaultDate = defaultDate;
+		this.resolvePromise = resolve;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', { text: 'Recurring meeting' });
+		contentEl.createEl('p', { text: 'This event is recurring. Enter the occurrence date in YYYY-MM-DD format.' });
+
+		const inputWrapper = contentEl.createDiv({ cls: 'outlook-meeting-notes-recurring-date-input' });
+		this.input = new TextComponent(inputWrapper);
+		this.input.setPlaceholder('YYYY-MM-DD');
+		this.input.setValue(this.defaultDate);
+		this.input.inputEl.setAttribute('aria-label', 'Recurring meeting date');
+		this.input.inputEl.addEventListener('keydown', (evt) => {
+			if (evt.key === 'Enter') {
+				evt.preventDefault();
+				this.submit();
+			}
+		});
+
+		const buttonWrapper = contentEl.createDiv({ cls: 'outlook-meeting-notes-recurring-date-buttons' });
+		new ButtonComponent(buttonWrapper)
+			.setButtonText('Cancel')
+			.onClick(() => this.cancel());
+		new ButtonComponent(buttonWrapper)
+			.setButtonText('OK')
+			.setCta()
+			.onClick(() => this.submit());
+
+		setTimeout(() => {
+			this.input.inputEl.focus({ preventScroll: true });
+			this.input.inputEl.select();
+		}, 0);
+	}
+
+	private submit(): void {
+		if (this.hasResolved) { return; }
+		this.hasResolved = true;
+		const value = this.input.getValue().trim();
+		this.resolvePromise(value);
+		this.close();
+	}
+
+	private cancel(): void {
+		if (this.hasResolved) { return; }
+		this.hasResolved = true;
+		this.resolvePromise(null);
+		this.close();
+	}
+
+	onClose(): void {
+		if (!this.hasResolved) {
+			this.hasResolved = true;
+			this.resolvePromise(null);
+		}
+		this.contentEl.empty();
+	}
 }
 
 class OutlookMeetingNotesSettingTab extends PluginSettingTab {
