@@ -16,7 +16,7 @@
 		"msg"
 	],
 	"author": "nathanstorm689",
-	"license": "ISC",
+	"license": "0BSD",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/nathanstorm689/outlook-event-notes"
