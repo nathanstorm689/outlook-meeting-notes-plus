@@ -121,9 +121,6 @@ export default class OutlookMeetingNotes extends Plugin {
 		}
 		const openInNewTab = false;
 		void this.app.workspace.getLeaf(openInNewTab).openFile(meetingNoteFile);
-		// @ts-ignore: Property 'internalPlugins' does not exist on type 'App'.
-		const fe = this.app.internalPlugins.getEnabledPluginById("file-explorer");
-		if (fe) { fe.revealInFolder(meetingNoteFile); }
 	}
 
 	private ensureBodyField(fileData: MeetingFileData): void {
@@ -247,8 +244,6 @@ export default class OutlookMeetingNotes extends Plugin {
 		});
 		this.registerDomEvent(this.ribbonIconEl, 'dragleave', () => {
 			this.ribbonIconEl.toggleClass('is-being-dragged-over', false);
-			const tooltip = document.getElementsByClassName('tooltip')[0];
-			if (tooltip) { tooltip.remove(); }
 		});
 		this.registerDomEvent(this.ribbonIconEl, 'dragover', (dragevt: DragEvent) => {
 			dragevt.preventDefault();
@@ -723,7 +718,7 @@ class OccurrenceDateModal extends Modal {
 
 	onOpen(): void {
 		const { contentEl } = this;
-		contentEl.createEl('h3', { text: 'Confirm occurrence date' });
+		new Setting(contentEl).setName('Confirm occurrence date').setHeading();
 		contentEl.createEl('p', {
 			text: 'This is an occurrence of a recurrent event. '
 				+ 'It is not possible to read the date of an occurrence of a recurrent event. '
