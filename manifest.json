@@ -1,9 +1,9 @@
 {
 	"id": "outlook-event-notes",
 	"name": "Outlook Event Notes",
-	"version": "0.3.2",
+	"version": "0.3.3",
 	"minAppVersion": "1.8.9",
-	"description": "Create notes from Outlook .msg files — supports meetings, appointments, and recurring events.",
+	"description": "Create new notes or open existing notes from Outlook .msg files, handling both single and repeating events.",
 	"author": "nathanstorm689",
 	"authorUrl": "https://github.com/nathanstorm689",
 	"isDesktopOnly": true

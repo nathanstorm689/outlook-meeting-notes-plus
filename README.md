@@ -19,7 +19,7 @@ An [Obsidian](https://obsidian.md) plugin that creates notes from Microsoft Outl
 
 ## Installation
 
-### Community Plugins (coming soon)
+### Community Plugins
 Search for **Outlook Event Notes** in Obsidian → Settings → Community Plugins.
 
 ### Manual installation
@@ -52,15 +52,15 @@ The folder where new notes are created. Created automatically if it does not exi
 ### Filename pattern
 Uses Mustache syntax. Default:
 ```
-{{#helper_dateFormat}}{{apptStartWhole}}|YYYY-MM-DD_HH-mm_ss{{/helper_dateFormat}}_{{subject}}
+{{#helper_dateFormat}}{{apptStartWhole}}|YYYY-MM-DD_HH-mm-ss{{/helper_dateFormat}} {{subject}}
 ```
-Produces filenames like `2026-03-11_19-00_00_Discuss documentation`.
+Produces filenames like `2026-07-30_18-20-05 Réunion d'équipe`.
 
 You can use `/` to create subfolders:
 ```
-{{#helper_dateFormat}}{{apptStartWhole}}|YYYY/MM/YYYY-MM-DD_HH-mm_ss{{/helper_dateFormat}} {{subject}}
+{{#helper_dateFormat}}{{apptStartWhole}}|YYYY/MM/YYYY-MM-DD_HH-mm-ss{{/helper_dateFormat}} {{subject}}
 ```
-produces `2026/03/2026-03-11_19-00_00_Discuss documentation`
+produces `2026/07/2026-07-30_18-20-05 Réunion d'équipe`
 
 ### Invalid character substitute
 Characters that are invalid in filenames (`/ * " \ < > : | ?`) are replaced with this value. Blank = remove them.
@@ -98,7 +98,7 @@ meeting-invite: {{body}}
 
 Use `helper_dateFormat` to reformat it:
 ```
-{{#helper_dateFormat}}{{helper_currentDT}}|YYYY-MM-DD_HH-mm_ss{{/helper_dateFormat}}
+{{#helper_dateFormat}}{{helper_currentDT}}|YYYY-MM-DD_HH-mm-ss{{/helper_dateFormat}}
 ```
 
 ### Helper functions
@@ -107,9 +107,9 @@ Use `helper_dateFormat` to reformat it:
 Formats a date using [moment.js](https://momentjs.com/). Separate the field and format with `|`.
 
 ```
-{{#helper_dateFormat}}{{apptStartWhole}}|YYYY-MM-DD_HH-mm_ss{{/helper_dateFormat}}
+{{#helper_dateFormat}}{{apptStartWhole}}|YYYY-MM-DD_HH-mm-ss{{/helper_dateFormat}}
 ```
-produces `2026-03-11_19-00_00`
+produces `2026-03-11_19-00-00`
 
 ```
 {{#helper_dateFormat}}{{apptStartWhole}}|L LT{{/helper_dateFormat}}
@@ -138,4 +138,4 @@ meeting-recipients:
 
 ## License
 
-ISC — see [LICENSE](LICENSE).
+0BSD — see [LICENSE](LICENSE).

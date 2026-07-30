@@ -1,4 +1,4 @@
-import { App, displayTooltip, Modal, moment as _moment, Notice, Plugin, PluginSettingTab, Setting, TooltipPlacement, normalizePath } from 'obsidian';
+import { App, displayTooltip, Modal, moment as _moment, Notice, Plugin, PluginSettingTab, Setting, SettingDefinitionItem, TooltipPlacement, normalizePath } from 'obsidian';
 import MsgReader, { AppointmentRecur, FieldsData } from '@kenjiuno/msgreader';
 import proxyData from 'mustache-validator';
 import Mustache from 'mustache';
@@ -20,7 +20,7 @@ interface MeetingFileData extends Omit<FieldsData, 'recipients' | 'apptRecur'> {
 }
 
 const OutlookMeetingNotesDefaultFilenamePattern =
-	'{{#helper_dateFormat}}{{apptStartWhole}}|YYYY-MM-DD_HH-mm_ss{{/helper_dateFormat}}_{{subject}}';
+	'{{#helper_dateFormat}}{{apptStartWhole}}|YYYY-MM-DD_HH-mm-ss{{/helper_dateFormat}} {{subject}}';
 
 const OutlookMeetingNotesDefaultTemplate = `---
 title: {{subject}}
@@ -262,7 +262,8 @@ export default class OutlookMeetingNotes extends Plugin {
 	onunload() { }
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const data = (await this.loadData()) as Partial<OutlookMeetingNotesSettings> | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
 	}
 
 	async saveSettings() {
@@ -763,6 +764,35 @@ class OutlookMeetingNotesSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	// Declarative metadata so these settings are found by Obsidian's settings
+	// search (available since 1.13.0). Rendering is still handled by display()
+	// below, since the imperative API gives finer control over the template
+	// text area and the documentation/donation links.
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return [
+			{
+				name: 'Folder location',
+				desc: 'Notes will be created in this folder.',
+				control: { type: 'text', key: 'notesFolder' },
+			},
+			{
+				name: 'Filename pattern',
+				desc: 'This pattern will be used to name new notes.',
+				control: { type: 'text', key: 'fileNamePattern' },
+			},
+			{
+				name: 'Invalid character substitute',
+				desc: 'This character (or string) will be used in place of any invalid characters for new note filenames.',
+				control: { type: 'text', key: 'invalidFilenameCharReplacement' },
+			},
+			{
+				name: 'Template',
+				desc: 'This template will be used for new notes.',
+				control: { type: 'textarea', key: 'notesTemplate' },
+			},
+		];
+	}
+
 	display(): void {
 		const { containerEl } = this;
 
@@ -817,33 +847,25 @@ class OutlookMeetingNotesSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setDesc((() => {
-				const df = document.createDocumentFragment();
-				df.appendChild(document.createTextNode(
-					'For more information about filename patterns and the syntax for templates, see the '
-				));
-				const link = document.createElement('a');
-				link.href = 'https://github.com/nathanstorm689/outlook-event-notes#readme';
-				link.target = '_blank';
-				link.rel = 'noopener';
-				link.textContent = 'Documentation';
-				df.appendChild(link);
-				df.appendChild(document.createTextNode('.'));
-				return df;
-			})());
+			.setDesc(createFragment(df => {
+				df.appendText('For more information about filename patterns and the syntax for templates, see the ');
+				df.createEl('a', {
+					text: 'Documentation',
+					href: 'https://github.com/nathanstorm689/outlook-event-notes#readme',
+					attr: { target: '_blank', rel: 'noopener' }
+				});
+				df.appendText('.');
+			}));
 
 		new Setting(containerEl)
-			.setDesc((() => {
-				const df = document.createDocumentFragment();
-				df.appendChild(document.createTextNode('If this plugin saves you time, consider '));
-				const link = document.createElement('a');
-				link.href = 'https://buymeacoffee.com/nathanstorm';
-				link.target = '_blank';
-				link.rel = 'noopener';
-				link.textContent = 'Buying me a coffee';
-				df.appendChild(link);
-				df.appendChild(document.createTextNode(' ☕'));
-				return df;
-			})());
+			.setDesc(createFragment(df => {
+				df.appendText('If this plugin saves you time, consider ');
+				df.createEl('a', {
+					text: 'Buying me a coffee',
+					href: 'https://buymeacoffee.com/nathanstorm',
+					attr: { target: '_blank', rel: 'noopener' }
+				});
+				df.appendText(' ☕');
+			}));
 	}
 }
