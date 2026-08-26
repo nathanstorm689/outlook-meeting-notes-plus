@@ -1,6 +1,6 @@
 {
 	"name": "outlook-event-notes",
-	"version": "0.3.3",
+	"version": "0.3.4",
 	"description": "Create new notes or open existing notes from Outlook .msg files, handling both single and repeating events.",
 	"main": "main.js",
 	"scripts": {

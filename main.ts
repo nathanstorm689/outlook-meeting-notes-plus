@@ -1,5 +1,5 @@
 import { App, displayTooltip, Modal, moment as _moment, Notice, Plugin, PluginSettingTab, Setting, SettingDefinitionItem, TooltipPlacement, normalizePath } from 'obsidian';
-import MsgReader, { AppointmentRecur, FieldsData } from '@kenjiuno/msgreader';
+import MsgReader, { AppointmentRecur, FieldsData, PatternType } from '@kenjiuno/msgreader';
 import proxyData from 'mustache-validator';
 import Mustache from 'mustache';
 
@@ -614,6 +614,25 @@ export default class OutlookMeetingNotes extends Plugin {
 		return null;
 	}
 
+	// Return the nth (1-4, or 5 = last) weekday matching dayOfWeekBits within the
+	// given month, at baseTime's time-of-day. Used for "MonthNth" recurrence patterns
+	// (e.g. "the fourth Wednesday of every month"), where the day-of-month shifts from
+	// month to month and cannot be found by simply adding months to the first occurrence.
+	// Returns null if the month doesn't have an nth match (e.g. no 5th Monday).
+	private nthWeekdayOfMonth(year: number, month0: number, dayOfWeekBits: number, n: number, baseTime: moment.Moment): moment.Moment | null {
+		const matches: moment.Moment[] = [];
+		const cursor = moment({ year, month: month0, day: 1 });
+		const daysInMonth = cursor.daysInMonth();
+		for (let d = 1; d <= daysInMonth; d++) {
+			const day = cursor.clone().date(d);
+			if (dayOfWeekBits & (1 << day.day())) matches.push(day);
+		}
+		if (matches.length === 0) return null;
+		const picked = n === 5 ? matches[matches.length - 1] : matches[n - 1];
+		if (!picked) return null;
+		return picked.add(baseTime.hours() * 60 + baseTime.minutes(), 'minutes');
+	}
+
 	// Return the occurrence of a recurring series closest to `today`.
 	// baseTime is apptStartWhole as a moment — the first occurrence with the
 	// correct timezone. Using it as the anchor avoids the one-day-off error that
@@ -666,12 +685,33 @@ export default class OutlookMeetingNotes extends Plugin {
 				}
 			} else if (freq === 8204) { // Monthly (period is in months)
 				const n = Math.round(Math.max(0, anchor.diff(firstMidnight, 'months')) / period);
-				for (let i = Math.max(0, n - 1); i <= n + 2; i++)
-					candidates.push(baseTime.clone().add(i * period, 'months'));
+				if (rp.patternType === PatternType.MonthNth && rp.patternTypeMonthNth) {
+					// e.g. "the fourth Wednesday of every month" — the day-of-month
+					// shifts each month, so it must be recomputed, not just offset.
+					const { dayOfWeekBits, n: nth } = rp.patternTypeMonthNth;
+					for (let i = Math.max(0, n - 1); i <= n + 2; i++) {
+						const monthStart = firstMidnight.clone().add(i * period, 'months');
+						const occ = this.nthWeekdayOfMonth(monthStart.year(), monthStart.month(), dayOfWeekBits, nth, baseTime);
+						if (occ) candidates.push(occ);
+					}
+				} else {
+					for (let i = Math.max(0, n - 1); i <= n + 2; i++)
+						candidates.push(baseTime.clone().add(i * period, 'months'));
+				}
 			} else if (freq === 8205) { // Yearly
 				const n = Math.max(0, anchor.diff(firstMidnight, 'years'));
-				for (let i = Math.max(0, n - 1); i <= n + 2; i++)
-					candidates.push(baseTime.clone().add(i, 'years'));
+				if (rp.patternType === PatternType.MonthNth && rp.patternTypeMonthNth) {
+					// e.g. "the fourth Wednesday of March every year".
+					const { dayOfWeekBits, n: nth } = rp.patternTypeMonthNth;
+					const month0 = firstMidnight.month();
+					for (let i = Math.max(0, n - 1); i <= n + 2; i++) {
+						const occ = this.nthWeekdayOfMonth(firstMidnight.year() + i, month0, dayOfWeekBits, nth, baseTime);
+						if (occ) candidates.push(occ);
+					}
+				} else {
+					for (let i = Math.max(0, n - 1); i <= n + 2; i++)
+						candidates.push(baseTime.clone().add(i, 'years'));
+				}
 			} else {
 				return null;
 			}
